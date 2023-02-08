@@ -16,10 +16,12 @@ using namespace std;
 
 int requestFileSize(string fileName);
 int getLocalFileSize(string fileName);
-std::vector<std::string> listAllJsFiles(std::string path);
+std::vector<std::string> listAllJsFiles(std::string path, string skipThisOne);
 void getFileName(string path, string* name, string *extension);
 std::string CopyFileWithMin(std::string sourcePath, std::string destinationPath);
 void eventLog(std::string message);
+void printProgressBar(double percentage);
+//void printLastLine(std::string text);
 
 cFTP ftp;
 int attempt = 0;
@@ -40,11 +42,11 @@ int main()
     vector<string> fileList;
     std::string remoteFolder = st.remoteDirectory;
     std::string localFolder = st.localDirectory;
-    string fileName, remoteFileName, localFileName;
-    long localFileSize, remoteFileSize;
+    string fileName, remoteFileName, locae, localFileName;
+    long localFileSize, remoteFileSize; // Size;
 
     // Get the file list of the directory
-    fileList = listAllJsFiles(localFolder);
+    fileList = listAllJsFiles(localFolder, st.minifiedPath);
 
     // Upload files
     for (unsigned i = 0; i < fileList.size(); i++)
@@ -56,7 +58,7 @@ int main()
         //Find the position of the substring
         int pos = fileName.find(localFolder);
         //Calculate the length of the substring
-        int len = localFolder.size() - pos + 1;
+        int len = localFolder.size() - pos; // + 1;
         //Remove the substring
         fileName.erase(pos, len);
 
@@ -77,10 +79,21 @@ int main()
             minifiedFilePath = CopyFileWithMin(localFileName, minPath);
         }
 
+        // Draw a progress bar
+        printProgressBar(((double)i)*100/fileList.size());
+
+        // Get file sizes
+        localFileSize = getLocalFileSize(minifiedFilePath);
+        remoteFileSize = ftp.getFileSize(remoteFileName);
+        // Check if file sizes match
+        if (localFileSize == remoteFileSize) {
+            continue; // skip upload
+        }
+
         // Retry uploading file until file sizes match
         bool uploadComplete = false;
 
-            cout << "Trying to send: " << fileName << endl;
+            cout << endl << "Trying to send: " << fileName << endl;
         while (!uploadComplete)
         {
             // Upload file
@@ -110,18 +123,19 @@ int main()
             attempt = 0;
 
             // Get file sizes
-            localFileSize = getLocalFileSize(localFileName);
+            localFileSize = getLocalFileSize(minifiedFilePath);
             remoteFileSize = ftp.getFileSize(remoteFileName);
             // remoteFileSize = requestFileSize(remoteFileName);
 
             // Check if file sizes match
-            if (localFileSize == remoteFileSize)
+            if (localFileSize == remoteFileSize) {
                 uploadComplete = true;
+                // Print success message
+                cout << "Successfully uploaded: " << fileName << endl;
+                eventLog("Successfully uploaded: " + fileName);
+            }
         }
 
-        // Print success message
-        cout << "Successfully uploaded: " << fileName << endl;
-        eventLog("Successfully uploaded: " + fileName);
     }
 
     cout << "Deploy Successfylly Completed !!!" << endl;
@@ -146,9 +160,14 @@ int getLocalFileSize(string fileName)
 }
 
 
-std::vector<std::string> listAllJsFiles(std::string path)
+std::vector<std::string> listAllJsFiles(std::string path, std::string skipThisOne)
 {
     std::vector<std::string> result;
+
+    // Skip minified folder
+    if(path==skipThisOne) {
+        return result;
+    }
 
     // WIN32_FIND_DATA structure is used for file attributes
     WIN32_FIND_DATA data;
@@ -170,7 +189,7 @@ std::vector<std::string> listAllJsFiles(std::string path)
             {
                 // call the function recursively
                 std::vector<std::string> subResult =
-                    listAllJsFiles(path + "\\" + data.cFileName);
+                    listAllJsFiles(path + data.cFileName, skipThisOne);
                 result.insert(result.end(),
                     subResult.begin(), subResult.end());
             }
@@ -271,7 +290,54 @@ void eventLog(std::string message) {
             << ltm->tm_min
             << ":"
             << ltm->tm_sec
-            << message
+            << "\t" + message
             << std::endl;
     logFile.close();
 }
+
+
+#include <iomanip>
+void printProgressBar(double percent)
+{
+    // Set output stream precision
+    cout << fixed << setprecision(2);
+
+    //Get the console handle
+    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
+    //Get the current cursor position
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    GetConsoleScreenBufferInfo(hConsole, &csbi);
+
+    // Variable to store the percentage
+    float barSize = csbi.dwSize.X -10;
+
+    // Print the percentage with a bar
+    cout << "\r" << percent << "% [";
+    for (int i = 0; i < barSize; i++)
+    {
+        if (i < (percent / 100) * barSize)
+            cout << "=";
+        else
+            cout << " ";
+    }
+    cout << "]";
+    cout << flush;
+}
+
+//void printLastLine(std::string text)
+//{
+//    //Get the console handle
+//    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
+//    //Get the current cursor position
+//    CONSOLE_SCREEN_BUFFER_INFO csbi;
+//    GetConsoleScreenBufferInfo(hConsole, &csbi);
+
+//    //Move the cursor to the last line
+//    COORD coord = {0, static_cast<SHORT>(csbi.dwSize.Y - 1)};
+//    SetConsoleCursorPosition(hConsole, coord);
+
+//    //Print the desired text
+//    std::cout << text;
+//}
