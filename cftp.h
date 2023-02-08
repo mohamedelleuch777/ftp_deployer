@@ -23,6 +23,7 @@ class cFTP
         cFTP();
         virtual ~cFTP();
         bool Connect();
+        bool Reconnect();
         void close();
         void setHost(std::string host);
         void setUsername(std::string user);

@@ -1,4 +1,6 @@
 
+#define MAX_ATTEMPT         3
+
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -8,6 +10,7 @@
 #include "settings.h"
 #include <dirent.h>
 #include "definitions.h"
+#include <ctime>
 
 using namespace std;
 
@@ -15,10 +18,11 @@ int requestFileSize(string fileName);
 int getLocalFileSize(string fileName);
 std::vector<std::string> listAllJsFiles(std::string path);
 void getFileName(string path, string* name, string *extension);
-bool CopyFileWithMin(std::string sourcePath, std::string destinationPath);
+std::string CopyFileWithMin(std::string sourcePath, std::string destinationPath);
+void eventLog(std::string message);
 
 cFTP ftp;
-
+int attempt = 0;
 
 int main()
 {
@@ -43,12 +47,26 @@ int main()
     fileList = listAllJsFiles(localFolder);
 
     // Upload files
-    for (int i = 0; i < fileList.size(); i++)
+    for (unsigned i = 0; i < fileList.size(); i++)
     {
         // Get file names
         fileName = fileList[i];
-        remoteFileName = remoteFolder + fileName;
+
+
+        //Find the position of the substring
+        int pos = fileName.find(localFolder);
+        //Calculate the length of the substring
+        int len = localFolder.size() - pos + 1;
+        //Remove the substring
+        fileName.erase(pos, len);
+
+
         localFileName = localFolder + fileName;
+        std::string nm, ex;
+        getFileName(fileName, &nm, &ex);
+        remoteFileName = remoteFolder + nm + ".min." + ex;
+
+        string minifiedFilePath = "";
 
         // Prepare file to be copied
         if(st.minify) {
@@ -56,7 +74,7 @@ int main()
         } else {
             // Copy it to the minified path with adding .min to the name
             string minPath = st.minifiedPath;
-            CopyFileWithMin(fileName, minPath);
+            minifiedFilePath = CopyFileWithMin(localFileName, minPath);
         }
 
         // Retry uploading file until file sizes match
@@ -66,12 +84,30 @@ int main()
         while (!uploadComplete)
         {
             // Upload file
-            bool uploadResult = ftp.sendFile(localFileName.c_str(), remoteFileName.c_str(), cFTP::MODE_ASCII);
-            if (uploadResult == false) {
-                std::string err = "Send File failed: " + GetLastError();
-                throw std::runtime_error(err);
-                return false;
+            bool uploadResult = ftp.sendFile(minifiedFilePath.c_str(), remoteFileName.c_str(), cFTP::MODE_ASCII);
+            if (!uploadResult) {
+                unsigned errCode = GetLastError();
+                std::string err = "Send File failed: " + std::to_string(errCode);
+                if(attempt>MAX_ATTEMPT) {
+                    eventLog("Deploy was not completed !!!");
+                    throw std::runtime_error(err);
+                    return errCode;
+                }
+                else {
+                    cout << "error code: " << errCode << endl;
+                    cout << err << endl;
+                    cout << "Retry to send the same file again. Attempt: " << attempt << endl;
+                    eventLog("Failed Error: " + std::to_string(errCode) + ". Retry " + std::to_string(attempt) + ": " + fileName);
+                    attempt++;
+                    if(errCode==12030 || errCode==12111) {
+                        ftp.Reconnect();
+                    }
+                    continue;
+                }
             }
+
+            // Reset the attempts counter
+            attempt = 0;
 
             // Get file sizes
             localFileSize = getLocalFileSize(localFileName);
@@ -84,9 +120,12 @@ int main()
         }
 
         // Print success message
-        cout << "Successfully uploaded " << fileName << endl;
+        cout << "Successfully uploaded: " << fileName << endl;
+        eventLog("Successfully uploaded: " + fileName);
     }
 
+    cout << "Deploy Successfylly Completed !!!" << endl;
+    eventLog("Deploy Successfylly Completed !!!");
     return 0;
 }
 
@@ -112,7 +151,7 @@ std::vector<std::string> listAllJsFiles(std::string path)
     std::vector<std::string> result;
 
     // WIN32_FIND_DATA structure is used for file attributes
-    WIN32_FIND_DATAA data;
+    WIN32_FIND_DATA data;
 
     // creates a handle for the find operation
     HANDLE hFind = FindFirstFile((path + "\\*").c_str(), &data);
@@ -139,11 +178,14 @@ std::vector<std::string> listAllJsFiles(std::string path)
             else
             {
                 // check if the file is a JS file
-                if (std::string(data.cFileName).find(".js") != std::string::npos)
+                if (
+                        std::string(data.cFileName).find(".js") != std::string::npos ||
+                        std::string(data.cFileName).find(".css") != std::string::npos
+                   )
                 {
                     // add the file to the result
                     result.push_back(path + "\\" + data.cFileName);
-                    cout << path + "\\" + data.cFileName << endl;
+                    // cout << path + "\\" + data.cFileName << endl;
                 }
             }
         } while (FindNextFile(hFind, &data));
@@ -181,7 +223,7 @@ void getFileName(string path, string* name, string *extension)
 }
 
 
-bool CopyFileWithMin(std::string sourcePath, std::string destinationPath){
+std::string CopyFileWithMin(std::string sourcePath, std::string destinationPath){
     // Check for minified folder
     DWORD dwAttrib = GetFileAttributes(destinationPath.c_str());
 
@@ -190,22 +232,46 @@ bool CopyFileWithMin(std::string sourcePath, std::string destinationPath){
     {
         //Create the directory
         if (CreateDirectory(destinationPath.c_str(), NULL) == 0)
-            return false;
+            return "";
     }
 
     // Get the file name from the source path
     std::string fileName = sourcePath.substr(sourcePath.find_last_of("\\") + 1);
 
     // Append .min to the file name
-    fileName = fileName.substr(0, fileName.find_last_of(".")) + ".min" + fileName.substr(fileName.find_last_of("."));
+    fileName = "\\" + fileName.substr(0, fileName.find_last_of(".")) + ".min" + fileName.substr(fileName.find_last_of("."));
 
     // Append the file name to the destination path
     destinationPath.append(fileName);
 
     // Copy the file from the source to the destination
     if(CopyFile(sourcePath.c_str(), destinationPath.c_str(), false)){
-        return true;
+        return destinationPath;
     } else {
-        return false;
+        return "";
     }
+}
+
+void eventLog(std::string message) {
+    std::ofstream logFile;
+    logFile.open("log.txt", std::ios_base::app);
+
+    time_t now = time(0);
+    tm *ltm = localtime(&now);
+
+    logFile << "INFO "
+            << 1900 + ltm->tm_year
+            << "-"
+            << 1 + ltm->tm_mon
+            << "-"
+            << ltm->tm_mday
+            << "   "
+            << ltm->tm_hour
+            << ":"
+            << ltm->tm_min
+            << ":"
+            << ltm->tm_sec
+            << message
+            << std::endl;
+    logFile.close();
 }

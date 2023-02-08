@@ -32,6 +32,11 @@ bool cFTP::Connect() {
     return true;
 }
 
+bool cFTP::Reconnect() {
+    this->close();
+    this->Connect();
+}
+
 void cFTP::close() {
     InternetCloseHandle(this->hFtpSession);
     InternetCloseHandle(this->hInternet);
