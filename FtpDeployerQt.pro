@@ -18,3 +18,6 @@ HEADERS += \
     settings.h
 
 LIBS += -lwininet -lws2_32 -static
+
+DISTFILES += \
+    settings.ini.template

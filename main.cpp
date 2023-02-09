@@ -134,6 +134,10 @@ int main()
                 cout << "Successfully uploaded: " << fileName << endl;
                 eventLog("Successfully uploaded: " + fileName);
             }
+            else {
+                cout << "File was broken: " << fileName << endl;
+                Sleep(250);
+            }
         }
 
     }
@@ -221,7 +225,7 @@ void getFileName(string path, string* name, string *extension)
 {
     string fileName;
     string fileExt;
-    int i = path.length()-1;
+    unsigned i = path.length()-1;
     while(i >= 0 && path[i] != '\\'){
         fileName.insert(0, 1, path[i]);
         i--;
