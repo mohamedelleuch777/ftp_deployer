@@ -7,6 +7,7 @@
 #include <string>
 #include <windows.h>
 #include "cftp.h"
+#include "cftp_sock.h"
 #include "settings.h"
 #include <dirent.h>
 #include "definitions.h"
@@ -24,19 +25,37 @@ void printProgressBar(double percentage);
 //void printLastLine(std::string text);
 
 cFTP ftp;
+cFTP_Sock ftpSock;
 int attempt = 0;
 
 int main()
 {
     Settings st;
-    ftp.setHost(st.host);
-    ftp.setUsername(st.username);
-    ftp.setPassword(st.password);
-    ftp.setPort(st.port);
-    if(!ftp.Connect()) {
+//    ftp.setHost(st.host);
+//    ftp.setUsername(st.username);
+//    ftp.setPassword(st.password);
+//    ftp.setPort(st.port);
+//    if(!ftp.Connect()) {
+//        cout << "FTP CONNECT FAILED" << endl;
+//        return 5;
+//    }
+
+
+
+    ftpSock.setHost(st.host);
+    ftpSock.setUsername(st.username);
+    ftpSock.setPassword(st.password);
+    ftpSock.setPort(st.port);
+    if(!ftpSock.Connect()) {
         cout << "FTP CONNECT FAILED" << endl;
         return 5;
     }
+    if(!ftpSock.login()) {
+        cout << "FTP LOGIN FAILED" << endl;
+        return 8;
+    }
+
+
     cout << "CONNECTED TO SERVER...\nSTARTING DEPLOY" << endl;
     // Declare variables
     vector<string> fileList;
@@ -66,7 +85,7 @@ int main()
         localFileName = localFolder + fileName;
         std::string nm, ex;
         getFileName(fileName, &nm, &ex);
-        remoteFileName = remoteFolder + nm + ".min." + ex;
+        remoteFileName = remoteFolder + "/" + nm + ".min." + ex;
 
         string minifiedFilePath = "";
 
@@ -84,7 +103,8 @@ int main()
 
         // Get file sizes
         localFileSize = getLocalFileSize(minifiedFilePath);
-        remoteFileSize = ftp.getFileSize(remoteFileName);
+        // remoteFileSize = ftp.getFileSize(remoteFileName);
+        remoteFileSize = ftpSock.getFileSize(remoteFileName);
         // Check if file sizes match
         if (localFileSize == remoteFileSize) {
             continue; // skip upload
@@ -97,7 +117,8 @@ int main()
         while (!uploadComplete)
         {
             // Upload file
-            bool uploadResult = ftp.sendFile(minifiedFilePath.c_str(), remoteFileName.c_str(), cFTP::MODE_ASCII);
+            // bool uploadResult = ftp.sendFile(minifiedFilePath.c_str(), remoteFileName.c_str(), cFTP::MODE_ASCII);
+            bool uploadResult = ftpSock.sendFile2(minifiedFilePath, st.remoteDirectory,  nm + ".min." + ex, cFTP::MODE_ASCII);
             if (!uploadResult) {
                 unsigned errCode = GetLastError();
                 std::string err = "Send File failed: " + std::to_string(errCode);
@@ -124,7 +145,7 @@ int main()
 
             // Get file sizes
             localFileSize = getLocalFileSize(minifiedFilePath);
-            remoteFileSize = ftp.getFileSize(remoteFileName);
+            remoteFileSize = ftpSock.getFileSize(remoteFileName);
             // remoteFileSize = requestFileSize(remoteFileName);
 
             // Check if file sizes match
@@ -143,7 +164,7 @@ int main()
     }
 
     cout << "Deploy Successfylly Completed !!!" << endl;
-    eventLog("Deploy Successfylly Completed !!!");
+    eventLog("#############################Deploy Successfylly Completed !!!#############################");
     return 0;
 }
 
@@ -277,7 +298,7 @@ std::string CopyFileWithMin(std::string sourcePath, std::string destinationPath)
 
 void eventLog(std::string message) {
     std::ofstream logFile;
-    logFile.open("log.txt", std::ios_base::app);
+    logFile.open("log.log", std::ios_base::app);
 
     time_t now = time(0);
     tm *ltm = localtime(&now);

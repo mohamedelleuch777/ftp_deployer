@@ -8,12 +8,14 @@ CONFIG -= app_bundle
 
 SOURCES += \
         cftp.cpp \
+        cftp_sock.cpp \
         main.cpp \
         settings.cpp
 
 
 HEADERS += \
     cftp.h \
+    cftp_sock.h \
     definitions.h \
     settings.h
 
