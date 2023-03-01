@@ -29,15 +29,16 @@ int Max_Attempt;
 int main()
 {
     Settings st;
-//    ftp.setHost(st.host);
-//    ftp.setUsername(st.username);
-//    ftp.setPassword(st.password);
-//    ftp.setPort(st.port);
-//    if(!ftp.Connect()) {
-//        cout << "FTP CONNECT FAILED" << endl;
-//        return 5;
-//    }
+    srand(time(0));  // Initialize random number generator.
 
+    char charList[] = {'-', '\\', '|', '/'};
+    cout << "Preparing Network For The Deploy..." << endl;
+    int max = 7 + rand() % 10;
+    for(int r=0;r<max; r++) {
+        cout << charList[r%3] << '\r';
+        Sleep(250);
+        cout.flush();
+    }
 
     Max_Attempt = st.maxAttempt;
     ftpSock.setHost(st.host);
@@ -45,7 +46,7 @@ int main()
     ftpSock.setPassword(st.password);
     ftpSock.setPort(st.port);
     if(!ftpSock.Connect()) {
-        cout << "FTP CONNECT FAILED" << endl;
+        cout << endl << "FTP CONNECT FAILED" << endl;
         return 5;
     }
     if(!ftpSock.login()) {
