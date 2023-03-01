@@ -11,4 +11,6 @@
 #define FtpPutFile                      FtpPutFileA
 #define InternetConnect                 InternetConnectA
 
+#define MAX_ATTEMPT                     5
+
 #endif // DEFINITIONS_H

@@ -1,6 +1,3 @@
-
-#define MAX_ATTEMPT         3
-
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -27,6 +24,7 @@ void printProgressBar(double percentage);
 cFTP ftp;
 cFTP_Sock ftpSock;
 int attempt = 0;
+int Max_Attempt;
 
 int main()
 {
@@ -41,7 +39,7 @@ int main()
 //    }
 
 
-
+    Max_Attempt = st.maxAttempt;
     ftpSock.setHost(st.host);
     ftpSock.setUsername(st.username);
     ftpSock.setPassword(st.password);
@@ -67,12 +65,14 @@ int main()
     // Get the file list of the directory
     fileList = listAllJsFiles(localFolder, st.minifiedPath);
 
+
+    eventLog("####################################Deploy Started!!!!!####################################");
+
     // Upload files
     for (unsigned i = 0; i < fileList.size(); i++)
     {
         // Get file names
         fileName = fileList[i];
-
 
         //Find the position of the substring
         int pos = fileName.find(localFolder);
@@ -80,7 +80,6 @@ int main()
         int len = localFolder.size() - pos; // + 1;
         //Remove the substring
         fileName.erase(pos, len);
-
 
         localFileName = localFolder + fileName;
         std::string nm, ex;
@@ -99,10 +98,13 @@ int main()
         }
 
         // Draw a progress bar
-        printProgressBar(((double)i)*100/fileList.size());
+        printProgressBar(((double)i+1)*100/fileList.size());
 
         // Get file sizes
         localFileSize = getLocalFileSize(minifiedFilePath);
+        if(localFileSize == 0) {
+            continue; // skip upload
+        }
         // remoteFileSize = ftp.getFileSize(remoteFileName);
         remoteFileSize = ftpSock.getFileSize(remoteFileName);
         // Check if file sizes match
@@ -122,8 +124,9 @@ int main()
             if (!uploadResult) {
                 unsigned errCode = GetLastError();
                 std::string err = "Send File failed: " + std::to_string(errCode);
-                if(attempt>MAX_ATTEMPT) {
-                    eventLog("Deploy was not completed !!!");
+                if(attempt>Max_Attempt) {
+                    cout << "Deploy Failed to be Completed !!!" << endl;
+                    eventLog("#############################Deploy Failed to be Completed !!!#############################");
                     throw std::runtime_error(err);
                     return errCode;
                 }
@@ -163,8 +166,9 @@ int main()
 
     }
 
-    cout << "Deploy Successfylly Completed !!!" << endl;
+    cout << endl << "Deploy Successfylly Completed !!!" << endl;
     eventLog("#############################Deploy Successfylly Completed !!!#############################");
+    Sleep(1000);
     return 0;
 }
 
@@ -303,18 +307,31 @@ void eventLog(std::string message) {
     time_t now = time(0);
     tm *ltm = localtime(&now);
 
+    string  year        = to_string(1900 + ltm->tm_year),
+            month       = to_string(1 + ltm->tm_mon),
+            day         = to_string(ltm->tm_mday),
+            hour        = to_string(ltm->tm_hour),
+            min         = to_string(ltm->tm_min),
+            sec         = to_string(ltm->tm_sec);
+
+    if(1 + ltm->tm_mon < 10) month = "0" + month;
+    if(ltm->tm_mday < 10) day = "0" + day;
+    if(ltm->tm_hour < 10) hour = "0" + hour;
+    if(ltm->tm_min < 10) min = "0" + min;
+    if(ltm->tm_sec < 10) sec = "0" + sec;
+
     logFile << "INFO "
-            << 1900 + ltm->tm_year
+            << year
             << "-"
-            << 1 + ltm->tm_mon
+            << month
             << "-"
-            << ltm->tm_mday
+            << day
             << "   "
-            << ltm->tm_hour
+            << hour
             << ":"
-            << ltm->tm_min
+            << min
             << ":"
-            << ltm->tm_sec
+            << sec
             << "\t" + message
             << std::endl;
     logFile.close();

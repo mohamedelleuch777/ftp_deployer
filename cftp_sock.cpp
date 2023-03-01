@@ -61,7 +61,7 @@ bool cFTP_Sock::Connect() {
         return false;
     }
 
-    cout << "Connected to server" << endl;
+    cout << "CONNECTED TO SERVER...AS ANONYMOUS" << endl;
     cout << "Welcome message received:" << endl;
     cout << res.substr(4,res.size()) << endl;
     return true;

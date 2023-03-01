@@ -7,3 +7,4 @@ LOCAL_DIRECTORY= <-- path to script lib directory -->
 REMOTE_DIRECTORY=\scripts\scriptLib\
 MINIFY=FALSE
 MINIFIED_PATH= <-- path to script lib directory -->\minified
+MAX_ATTEMPT=5 <-- or another value -->

@@ -13,11 +13,12 @@ Settings::Settings()
         this->host              = this->read("HOST");
         this->username          = this->read("USERNAME");
         this->password          = this->read("PASSWORD");
-        this->port              = std::stoi(this->read("PORT"));
+        this->port              = this->read("PORT") == "" ? 0 : std::stoi(this->read("PORT"));
         this->localDirectory    = this->read("LOCAL_DIRECTORY");
         this->remoteDirectory   = this->read("REMOTE_DIRECTORY");
         this->minify            = this->read("MINIFY")=="TRUE";
         this->minifiedPath      = this->read("MINIFIED_PATH");
+        this->maxAttempt        = this->read("MAX_ATTEMPT") == "" ? MAX_ATTEMPT : std::stoi(this->read("MAX_ATTEMPT"));
     }
 }
 
@@ -35,11 +36,15 @@ std::string Settings::read(std::string key)
     {
         if(line.size() > 0 && line[0] != '#')
         {
-            if(line.find(key) != std::string::npos)
+            std::size_t pos = line.find("=");
+            // if(line.find(key) != std::string::npos)
+            if(pos>=0)
             {
-                std::size_t pos = line.find("=");
-                value = line.substr(pos+1);
-                break;
+                std::string foundKey = line.substr(0,pos);
+                if(foundKey==key) {
+                    value = line.substr(pos+1);
+                    break;
+                }
             }
         }
     }

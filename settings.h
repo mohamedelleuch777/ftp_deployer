@@ -23,6 +23,7 @@ class Settings
         std::string remoteDirectory;
         bool        minify;
         std::string minifiedPath;
+        int         maxAttempt;
 
     protected:
 
