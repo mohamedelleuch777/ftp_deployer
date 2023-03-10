@@ -19,21 +19,36 @@ void getFileName(string path, string* name, string *extension);
 std::string CopyFileWithMin(std::string sourcePath, std::string destinationPath);
 void eventLog(std::string message);
 void printProgressBar(double percentage);
+string ExePath();
+void exec(string program, string param);
 //void printLastLine(std::string text);
 
 cFTP ftp;
 cFTP_Sock ftpSock;
 int attempt = 0;
 int Max_Attempt;
+int lastExecutionValue = 0;
 
-int main()
+int main(int argc, char **argv)
 {
+    if (argc >= 2) {
+         string param(argv[1]);
+         lastExecutionValue = stoi(param);
+    }
     Settings st;
     srand(time(0));  // Initialize random number generator.
 
     char charList[] = {'-', '\\', '|', '/'};
-    cout << "Preparing Network For The Deploy..." << endl;
-    int max = 7 + rand() % 10;
+    int max = 0;
+    if(lastExecutionValue==0) {
+        cout << "Preparing Network For The Deploy..." << endl;
+        max = 7 + rand() % 10;
+
+    }
+    else {
+        cout << "Checking last deploy operation..." << endl;
+        max = 1 + rand() % 10;
+    }
     for(int r=0;r<max; r++) {
         cout << charList[r%3] << '\r';
         Sleep(250);
@@ -47,10 +62,12 @@ int main()
     ftpSock.setPort(st.port);
     if(!ftpSock.Connect()) {
         cout << endl << "FTP CONNECT FAILED" << endl;
+        system("pause");
         return 5;
     }
     if(!ftpSock.login()) {
         cout << "FTP LOGIN FAILED" << endl;
+        system("pause");
         return 8;
     }
 
@@ -123,11 +140,13 @@ int main()
             // bool uploadResult = ftp.sendFile(minifiedFilePath.c_str(), remoteFileName.c_str(), cFTP::MODE_ASCII);
             bool uploadResult = ftpSock.sendFile2(minifiedFilePath, st.remoteDirectory,  nm + ".min." + ex, cFTP::MODE_ASCII);
             if (!uploadResult) {
+                lastExecutionValue = 0;
                 unsigned errCode = GetLastError();
                 std::string err = "Send File failed: " + std::to_string(errCode);
                 if(attempt>Max_Attempt) {
                     cout << "Deploy Failed to be Completed !!!" << endl;
                     eventLog("#############################Deploy Failed to be Completed !!!#############################");
+                    system("pause");
                     throw std::runtime_error(err);
                     return errCode;
                 }
@@ -137,8 +156,15 @@ int main()
                     cout << "Retry to send the same file again. Attempt: " << attempt << endl;
                     eventLog("Failed Error: " + std::to_string(errCode) + ". Retry " + std::to_string(attempt) + ": " + fileName);
                     attempt++;
-                    if(errCode==12030 || errCode==12111) {
-                        ftp.Reconnect();
+                    if(errCode==12030 || errCode==12111 || errCode==10054 || errCode==10093) {
+                        bool result = ftpSock.Reconnect();
+                        if(result) {
+                            // Draw a progress bar
+                            printProgressBar(((double)i+1)*100/fileList.size());
+                        }
+                        else {
+                            cout << "Reconnected was failed!!!" << endl;
+                        }
                     }
                     continue;
                 }
@@ -146,7 +172,6 @@ int main()
 
             // Reset the attempts counter
             attempt = 0;
-
             // Get file sizes
             localFileSize = getLocalFileSize(minifiedFilePath);
             remoteFileSize = ftpSock.getFileSize(remoteFileName);
@@ -169,7 +194,13 @@ int main()
 
     cout << endl << "Deploy Successfylly Completed !!!" << endl;
     eventLog("#############################Deploy Successfylly Completed !!!#############################");
-    Sleep(1000);
+    string program = ExePath();
+    if(lastExecutionValue==0) {
+        exec(program,"1");
+    }
+    else {
+        system("pause");
+    }
     return 0;
 }
 
@@ -353,7 +384,7 @@ void printProgressBar(double percent)
     GetConsoleScreenBufferInfo(hConsole, &csbi);
 
     // Variable to store the percentage
-    float barSize = csbi.dwSize.X -10;
+    float barSize = csbi.dwSize.X -9;
 
     // Print the percentage with a bar
     cout << "\r" << percent << "% [";
@@ -366,6 +397,30 @@ void printProgressBar(double percent)
     }
     cout << "]";
     cout << flush;
+}
+
+string ExePath() {
+    char buffer[MAX_PATH] = { 0 };
+    GetModuleFileName( NULL, buffer, MAX_PATH );
+    string::size_type pos = string(buffer).find_last_of("\\/");
+    return string(buffer).substr(0, pos) + "\\FtpDeployerQt.exe";
+}
+
+
+void exec(string program, string param) {
+    SHELLEXECUTEINFOA ShExecInfo = {0};
+    ShExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
+    ShExecInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
+    ShExecInfo.hwnd = NULL;
+    ShExecInfo.lpVerb = NULL;
+    // ShExecInfo.lpFile = std::wstring(program.begin(), program.end()).c_str();
+    ShExecInfo.lpFile = program.c_str();
+    ShExecInfo.lpParameters = param.c_str();
+    ShExecInfo.lpDirectory = NULL;
+    ShExecInfo.nShow = SW_SHOW;
+    ShExecInfo.hInstApp = NULL;
+    ShellExecuteExA(&ShExecInfo);
+    // WaitForSingleObject(ShExecInfo.hProcess,INFINITE);
 }
 
 //void printLastLine(std::string text)

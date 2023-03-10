@@ -30,7 +30,10 @@ class cFTP_Sock
 public:
     cFTP_Sock();
     virtual ~cFTP_Sock();
+    bool Initialize();
     bool Connect();
+    void Close();
+    bool Reconnect();
     string receiveResponse();
     bool login();
     int readResponse(string resps);

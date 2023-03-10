@@ -2,15 +2,7 @@
 
 cFTP_Sock::cFTP_Sock()
 {
-    #ifdef WIN32
-        // Initialize Winsock
-        WSADATA wsaData;
-        int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
-        if (result != 0) {
-            cerr << "WSAStartup failed: " << result << endl;
-            return;
-        }
-    #endif
+    this->Initialize();
 }
 
 cFTP_Sock::~cFTP_Sock() {
@@ -18,6 +10,20 @@ cFTP_Sock::~cFTP_Sock() {
         // Clean up Winsock
         WSACleanup();
     #endif
+}
+
+bool cFTP_Sock::Initialize() {
+    // Initialize Winsock
+#ifdef WIN32
+    // Initialize Winsock
+    WSADATA wsaData;
+    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (result != 0) {
+        cerr << "WSAStartup failed: " << result << endl;
+        return false;
+    }
+    return true;
+#endif
 }
 
 bool cFTP_Sock::Connect() {
@@ -81,9 +87,11 @@ string cFTP_Sock::receiveResponse() {
   }
 
   if (bytesReceived == 0) {
-    cerr << "Connection closed by server" << endl;
+      cerr << "Connection closed by server" << endl;
   } else if (bytesReceived < 0) {
-    cerr << "Error receiving response" << endl;
+      cerr << "Error receiving response" << endl;
+      cerr << "File deploy was failed!!!" << endl;
+      // system("pause");
   }
 
   return response;
@@ -225,7 +233,8 @@ long cFTP_Sock::getFileSize(string fileName) {
     // Wait for the FTP server's response
     res = this->receiveResponse();
     if(this->readResponse(res)==550) {
-        cerr << "Error file not found!" << endl;
+        cerr << "Error: the file not found!" << endl;
+        cerr << "Trying to create a new file..." << endl;
         return 0;
     }
     if(this->readResponse(res)!=213) {
@@ -256,6 +265,9 @@ bool cFTP_Sock::sendFile2(string localFile, string remoteDirPath, string fileNam
     string command = "CWD "+remoteDirPath;
     this->ExecuteCommand(command);
     string res = this->receiveResponse();
+    if(res=="") {
+        return false;
+    }
     int resInt = this->readResponse(res);
     if(resInt!=250) {
         cout << "Failed to change directory to: " << remoteDirPath << endl;
@@ -266,6 +278,9 @@ bool cFTP_Sock::sendFile2(string localFile, string remoteDirPath, string fileNam
     command = "TYPE A";
     this->ExecuteCommand(command);
     res = this->receiveResponse();
+    if(res=="") {
+        return false;
+    }
     resInt = this->readResponse(res);
     if(resInt!=200) {
         cout << "Could not set type to A" << endl;
@@ -277,6 +292,9 @@ bool cFTP_Sock::sendFile2(string localFile, string remoteDirPath, string fileNam
     command = "PASV";
     this->ExecuteCommand(command);
     res = this->receiveResponse();
+    if(res=="") {
+        return false;
+    }
     resInt = this->readResponse(res);
 
     if(resInt!=227) {
@@ -291,9 +309,9 @@ bool cFTP_Sock::sendFile2(string localFile, string remoteDirPath, string fileNam
     vector<string> resV = splitByComma(addrPort, ',');
     int newPort = stoi(resV[4])*256 + stoi(resV[5]);
 
-    // ######################################################
-    // CREATE NEW SOCKET FOR THE DATA CHANNEL CONNECTION
-    // ######################################################
+    //######################################################
+    //# CREATE NEW SOCKET FOR THE DATA CHANNEL CONNECTION
+    //######################################################
     int newSock = socket(AF_INET, SOCK_STREAM, 0);
     if (newSock < 0) {
         cerr << "Error creating socket" << endl;
@@ -322,9 +340,9 @@ bool cFTP_Sock::sendFile2(string localFile, string remoteDirPath, string fileNam
         WSACleanup();
         return false;
     }
-    // ######################################################
-    // END
-    // ######################################################
+    //#######################################################
+    //# END
+    //#######################################################
 /*
     // Determine the transfer mode (ASCII or binary)
     string transferMode;
@@ -344,7 +362,9 @@ bool cFTP_Sock::sendFile2(string localFile, string remoteDirPath, string fileNam
     command = "STOR " + fileName;
     this->ExecuteCommand(command);
     res = this->receiveResponse();
-
+    if(res=="") {
+        return false;
+    }
 
     //Open the file
     ifstream fileStream(localFile.c_str(), ios::binary);
@@ -371,15 +391,14 @@ bool cFTP_Sock::sendFile2(string localFile, string remoteDirPath, string fileNam
     // WSACleanup();
 
     res = this->receiveResponse();
+    if(res=="") {
+        return false;
+    }
     resInt = this->readResponse(res);
     if(resInt!=226) {
         cout << "Error while transfering the file: " << localFile << endl;
         return false;
     }
-
-
-
-
     // Clean up the buffer
     // delete[] buffer;
 
@@ -391,28 +410,39 @@ vector<string> splitByComma(string s, char c)
 {
     // Vector to store the strings
     vector<string> result;
-
     // To store the intermediate strings
     string str;
-
     // Traverse through the input string
     for (auto x : s) {
-
         // If x is a comma, then store the intermediate string
         if (x == c) {
             result.push_back(str);
             str = "";
         }
-
         // Else keep adding characters to form the intermediate string
         else {
             str = str + x;
         }
     }
-
     // Store the last string
     result.push_back(str);
-
     // Return the vector
     return result;
+}
+
+void cFTP_Sock::Close() {
+    this->sock = -1;
+    WSACleanup();
+}
+
+bool cFTP_Sock::Reconnect() {
+    Sleep(1000);
+    this->Close();
+    if(!this->Initialize()) {
+        return false;
+    }
+    if(!this->Connect()) {
+        return false;
+    }
+    return this->login();
 }
